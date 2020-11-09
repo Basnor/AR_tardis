@@ -90,7 +90,7 @@ export class WebXRApp {
 
         this.camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 200 );
 
-        onInitRenderer();
+        this.onInitRenderer();
 
         this.renderer.xr.setReferenceSpaceType('local');
 		this.renderer.xr.setSession(session);
