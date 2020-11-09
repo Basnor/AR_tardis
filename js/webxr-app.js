@@ -6,8 +6,8 @@ const MODEL_SCALE = 0.9;
 const MAX_QUBIUSES = 15;
 
 import * as THREE from './three.js/three.module.js';
-import { MTLLoader } from './three.js/MTLLoader.js.js';
-import { OBJLoader } from './three.js/OBJLoader.js.js';
+import { MTLLoader } from './three.js/MTLLoader.js';
+import { OBJLoader } from './three.js/OBJLoader.js';
 import { WebXRButton } from './util/webxr-button.js';
 import './util/utils.js';
 
