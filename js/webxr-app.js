@@ -1,9 +1,6 @@
 const MODELS_URL = '../media/model/';
-const MODELS_ = ''
 const MODEL_OBJ_URL = 'TARDIS.obj';
 const MODEL_MTL_URL = 'TARDIS.mtl';
-const MODEL_SCALE = 0.9;
-const MAX_QUBIUSES = 15;
 
 import * as THREE from './three.js/three.module.js';
 import { MTLLoader } from './three.js/MTLLoader.js';
@@ -29,11 +26,12 @@ export class WebXRApp {
         this.camera;
         this.scene;
         this.renderer;
+        this.reticle;
     
         // XR globals
         this.xrViewerSpace = null;
-        this.hitTestSource;
-        this.hitTestSourceRequested;
+        this.hitTestSource = null;
+
         this.xrButton = new WebXRButton({
             onRequestSession: () => { return this.onRequestSession(); },
             onEndSession: (session) => { this.onEndSession(session); },
@@ -41,7 +39,13 @@ export class WebXRApp {
             textXRNotFoundTitle: "AR NOT FOUND",
             textExitXRTitle: "EXIT AR",
         });
-    
+
+        this.frameCallback = (time, frame) => {
+            let session = frame.session;
+            session.requestAnimationFrame(this.frameCallback);
+
+            this.onXRFrame(time, frame);
+        };
     }
   
     run() {
@@ -57,7 +61,7 @@ export class WebXRApp {
         }
     }
   
-    onInitRenderer() {
+    setWebGLRenderer() {
         this.renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
         this.renderer.setPixelRatio( window.devicePixelRatio );
         this.renderer.setSize( window.innerWidth, window.innerHeight );
@@ -88,28 +92,75 @@ export class WebXRApp {
    
         this.scene = new THREE.Scene();
 
-        this.camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 200 );
+        this.camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
 
-        this.onInitRenderer();
+        const light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
+		light.position.set( 0.5, 1, 0.25 );
+		this.scene.add( light );
 
+
+        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+        this.renderer.xr.enabled = true;
         this.renderer.xr.setReferenceSpaceType('local');
-		this.renderer.xr.setSession(session);
-    
+        this.renderer.xr.setSession(session);
+
+
+        this.reticle = new THREE.Mesh(
+            new THREE.RingBufferGeometry(0.15, 0.2, 32).rotateX( - Math.PI / 2 ),
+            new THREE.MeshBasicMaterial()
+        );
+        this.reticle.matrixAutoUpdate = false;
+        this.reticle.visible = false;
+        this.scene.add(this.reticle);
+
+
+        session.requestReferenceSpace('viewer').then((referenceSpace) => {
+            this.xrViewerSpace = referenceSpace;
+            session.requestHitTestSource({ space: this.xrViewerSpace }).then((source) => {
+                this.hitTestSource = source;
+            });
+        });
+
+        session.requestReferenceSpace('local').then((referenceSpace) => {
+            this.xrViewerSpace = referenceSpace;
+  
+            session.requestAnimationFrame(this.frameCallback);
+        });
     }
   
     onSessionEnded(session) {
         if (session == this.xrButton.session) {
             this.xrButton.setSession(null);
         }
+        this.hitTestSource = null;
     }
 
     onSelect(event) {
-
+        console.log('onSelect');
     }
   
     // Override to customize frame handling
-    onXRFrame(time, frame, refSpace) {
+    onXRFrame(time, frame) {
+        if (frame) {
+            if (this.hitTestSource) {
+                const hitTestResults = frame.getHitTestResults(this.hitTestSource);
 
+                if (hitTestResults.length) {
+                    const hit = hitTestResults[0];
+                    //console.log(this.reticle);
+                    this.reticle.visible = true;
+                    this.reticle.matrix.fromArray( hit.getPose(this.xrViewerSpace).transform.matrix);
+                } else {
+                    this.reticle.visible = false;
+                }
+            }
+
+        }
+
+        this.renderer.render(this.scene, this.camera)
     }
   }
   
