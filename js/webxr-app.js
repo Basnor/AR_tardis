@@ -1,12 +1,12 @@
-const MODELS_URL = '../media/model/';
-const MODEL_OBJ_URL = 'TARDIS.obj';
-const MODEL_MTL_URL = 'TARDIS.mtl';
+const MODELS_URL = 'model/';
+const MODEL_OBJ = 'tardis.obj';
+const MODEL_MTL = 'tardis.mtl';
 
 import * as THREE from './three.js/three.module.js';
-import { MTLLoader } from './three.js/MTLLoader.js';
-import { OBJLoader } from './three.js/OBJLoader.js';
 import { WebXRButton } from './util/webxr-button.js';
-import './util/utils.js';
+import { Reticle } from './util/utils.js';
+import { LitScene } from './util/utils.js';
+import { Model } from './util/utils.js';
 
 /**
  * Container class to manage connecting to the WebXR Device API
@@ -27,6 +27,7 @@ export class WebXRApp {
         this.scene;
         this.renderer;
         this.reticle;
+        this.model;
     
         // XR globals
         this.xrViewerSpace = null;
@@ -61,11 +62,14 @@ export class WebXRApp {
         }
     }
   
-    setWebGLRenderer() {
-        this.renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true } );
-        this.renderer.setPixelRatio( window.devicePixelRatio );
-        this.renderer.setSize( window.innerWidth, window.innerHeight );
+    onInitRenderer(session) {
+        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+
         this.renderer.xr.enabled = true;
+        this.renderer.xr.setReferenceSpaceType('local');
+        this.renderer.xr.setSession(session);
     }
   
     onRequestSession() {
@@ -87,35 +91,19 @@ export class WebXRApp {
             this.onSessionEnded(event.session);
         });
     
-        session.addEventListener('select', this.onSelect);
-
-   
-        this.scene = new THREE.Scene();
+        session.addEventListener('select', (event) => {
+            this.onSelect(event);
+        });
 
         this.camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.01, 20 );
+        this.scene = new LitScene();
 
-        const light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
-		light.position.set( 0.5, 1, 0.25 );
-		this.scene.add( light );
+        this.model = new Model(MODELS_URL, MODEL_OBJ, MODEL_MTL);
 
-
-        this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-
-        this.renderer.xr.enabled = true;
-        this.renderer.xr.setReferenceSpaceType('local');
-        this.renderer.xr.setSession(session);
-
-
-        this.reticle = new THREE.Mesh(
-            new THREE.RingBufferGeometry(0.15, 0.2, 32).rotateX( - Math.PI / 2 ),
-            new THREE.MeshBasicMaterial()
-        );
-        this.reticle.matrixAutoUpdate = false;
-        this.reticle.visible = false;
+        this.reticle = new Reticle(this.session, this.camera);
         this.scene.add(this.reticle);
 
+        this.onInitRenderer(session);
 
         session.requestReferenceSpace('viewer').then((referenceSpace) => {
             this.xrViewerSpace = referenceSpace;
@@ -139,25 +127,24 @@ export class WebXRApp {
     }
 
     onSelect(event) {
-        console.log('onSelect');
+        if (this.reticle.visible) { 
+            this.model.position.setFromMatrixPosition(this.reticle.matrix);
+            this.scene.add(this.model);
+        }
     }
   
     // Override to customize frame handling
     onXRFrame(time, frame) {
-        if (frame) {
-            if (this.hitTestSource) {
-                const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+        if (frame && this.hitTestSource) {
+            const hitTestResults = frame.getHitTestResults(this.hitTestSource);
 
-                if (hitTestResults.length) {
-                    const hit = hitTestResults[0];
-                    //console.log(this.reticle);
-                    this.reticle.visible = true;
-                    this.reticle.matrix.fromArray( hit.getPose(this.xrViewerSpace).transform.matrix);
-                } else {
-                    this.reticle.visible = false;
-                }
+            if (hitTestResults.length) {
+                const hit = hitTestResults[0];
+                this.reticle.visible = true;
+                this.reticle.matrix.fromArray( hit.getPose(this.xrViewerSpace).transform.matrix);
+            } else {
+                this.reticle.visible = false;
             }
-
         }
 
         this.renderer.render(this.scene, this.camera)
