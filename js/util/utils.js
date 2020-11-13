@@ -18,8 +18,6 @@ export class Reticle extends THREE.Mesh {
         this.material = new THREE.MeshBasicMaterial()
         this.matrixAutoUpdate = false;
         this.visible = false;
-        this.session = xrSession;
-        this.camera = camera;
     }
 }
 
@@ -50,6 +48,8 @@ export class Model extends THREE.Group {
     constructor(URL, obj, mtl) {
         super();
 
+        let that = this;
+
         const onProgress = function (xhr) {
             if ( xhr.lengthComputable ) {
                 const percentComplete = xhr.loaded / xhr.total * 100;
@@ -57,7 +57,10 @@ export class Model extends THREE.Group {
             }
         };
 
-        const onError = function () { };
+        const onError = function (error) { 
+            console.log('OBJLoader error happened');
+            console.log(error);
+        };
 
         const manager = new THREE.LoadingManager();
 
@@ -71,7 +74,7 @@ export class Model extends THREE.Group {
                     .setPath(URL)
                     .load(obj, function (object) {
                         object.scale.set(1.0, 1.0, 1.0);
-                        this.add(object);
+                        that.add(object);
                     }, onProgress, onError);
 
             } );
